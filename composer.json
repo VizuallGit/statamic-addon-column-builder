@@ -1,12 +1,12 @@
 {
-    "name": "vizuall/column-builder",
+    "name": "statamic-addon/column-builder",
     "description": "Vizuall Column Builder fieldtype",
     "type": "statamic-addon",
     "license": "proprietary",
     "require": {
         "php": "^8.2",
         "statamic/cms": "^6.0",
-        "vizuall/color-scheme": "@dev"
+        "statamic-addon/color-scheme": "@dev"
     },
     "autoload": {
         "psr-4": {
