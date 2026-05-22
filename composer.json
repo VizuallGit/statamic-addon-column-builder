@@ -1,0 +1,29 @@
+{
+    "name": "vizuall/column-builder",
+    "description": "Vizuall Column Builder fieldtype",
+    "type": "statamic-addon",
+    "license": "proprietary",
+    "require": {
+        "php": "^8.2",
+        "statamic/cms": "^6.0",
+        "vizuall/color-scheme": "@dev"
+    },
+    "autoload": {
+        "psr-4": {
+            "Vizuall\\ColumnBuilder\\": "src/"
+        }
+    },
+    "extra": {
+        "statamic": {
+            "name": "Vizuall Column Builder",
+            "provider": "Vizuall\\ColumnBuilder\\AddonServiceProvider"
+        },
+        "laravel": {
+            "providers": [
+                "Vizuall\\ColumnBuilder\\AddonServiceProvider"
+            ]
+        }
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
+}
