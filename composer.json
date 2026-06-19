@@ -1,6 +1,6 @@
 {
     "name": "statamic-addon/column-builder",
-    "description": "Vizuall Column Builder fieldtype",
+    "description": "Column Builder fieldtype",
     "type": "statamic-addon",
     "license": "proprietary",
     "require": {
@@ -15,7 +15,7 @@
     },
     "extra": {
         "statamic": {
-            "name": "Vizuall Column Builder",
+            "name": "Column Builder",
             "provider": "Vizuall\\ColumnBuilder\\AddonServiceProvider"
         },
         "laravel": {
