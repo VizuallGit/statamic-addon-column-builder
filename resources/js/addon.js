@@ -25,7 +25,6 @@
                     .${popupClass} .bard-editor > div { flex:1 !important; min-height:0 !important; display:flex !important; flex-direction:column !important; }
                     .${popupClass} .bard-editor .ProseMirror { flex:1 !important; min-height:200px !important; overflow-y:auto !important; }
                     .${popupClass} .bard-editor .bard-content { min-height:200px !important; }
-                    .cb-width-sel-${uid} { display:flex;gap:2px;align-items:center; }
                 `;
                 document.head.appendChild(styleEl);
                 onUnmounted(() => document.head.removeChild(styleEl));
@@ -38,10 +37,10 @@
                 const currentBp   = ref('desktop');
                 const items       = computed(() => Array.isArray(props.value) ? props.value : []);
 
-                const addMenuTrigger = ref(null);
-                const addMenuPortal  = { value: null };
-
-                const addMenuSets = computed(() => {
+                // ── Column type sets ──────────────────────────────────────────
+                // Loops through all groups and collects their sets, so every
+                // field group defined in the blueprint appears in the type picker.
+                const columnSets = computed(() => {
                     const sc = props.meta?.sets_config;
                     if (sc && Object.keys(sc).length > 0) {
                         return Object.entries(sc).map(([handle, cfg]) => ({
@@ -58,66 +57,94 @@
                     return result;
                 });
 
-                const addItem = (handle) => {
-                    closeAddMenu();
-                    const newId  = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-                    const newItem = { _id: newId, type: handle, enabled: true, col_w_m: '6', col_w_t: '3', col_w_d: '2' };
-                    const setMeta = (props.meta?.new || {})[handle] || { _: '_' };
+                // ── Add empty column ──────────────────────────────────────────
+                const addColumn = () => {
+                    const newId   = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+                    const newItem = { _id: newId, type: null, enabled: true, col_w_m: '12', col_w_t: '6', col_w_d: '4' };
                     emit('update:value', [...items.value, newItem]);
-                    emit('update:meta', { ...props.meta, existing: { ...(props.meta?.existing || {}), [newId]: setMeta } });
                 };
 
-                const updateAddMenuPos = () => {
-                    if (!addMenuPortal.value || !addMenuTrigger.value) return;
-                    const r = addMenuTrigger.value.getBoundingClientRect();
-                    addMenuPortal.value.style.top  = `${r.bottom + 4}px`;
-                    addMenuPortal.value.style.left = `${r.left}px`;
+                // ── Type picker portal ────────────────────────────────────────
+                const typePickerPortal  = { value: null };
+                const typePickerItemId  = ref(null);
+                let   typePickerTrigger = null;
+
+                const updateTypePickerPos = () => {
+                    if (!typePickerPortal.value || !typePickerTrigger) return;
+                    const r    = typePickerTrigger.getBoundingClientRect();
+                    const left = Math.max(8, r.left + r.width / 2 - 90);
+                    typePickerPortal.value.style.top  = `${r.bottom + 6}px`;
+                    typePickerPortal.value.style.left = `${left}px`;
                 };
 
-                const handleClickOutsideAddMenu = (e) => {
-                    if (!addMenuPortal.value) return;
-                    if (!addMenuTrigger.value?.contains(e.target) && !addMenuPortal.value.contains(e.target))
-                        closeAddMenu();
+                const handleClickOutsideTypePicker = (e) => {
+                    if (!typePickerPortal.value) return;
+                    if (!typePickerPortal.value.contains(e.target)) closeTypePicker();
                 };
 
-                const closeAddMenu = () => {
-                    if (!addMenuPortal.value) return;
-                    document.body.removeChild(addMenuPortal.value);
-                    addMenuPortal.value = null;
-                    document.removeEventListener('click', handleClickOutsideAddMenu, true);
-                    window.removeEventListener('scroll', updateAddMenuPos, true);
+                const closeTypePicker = () => {
+                    if (!typePickerPortal.value) return;
+                    document.body.removeChild(typePickerPortal.value);
+                    typePickerPortal.value = null;
+                    typePickerItemId.value = null;
+                    typePickerTrigger      = null;
+                    document.removeEventListener('click', handleClickOutsideTypePicker, true);
+                    window.removeEventListener('scroll', updateTypePickerPos, true);
                 };
 
-                const openAddMenu = () => {
-                    if (addMenuPortal.value) { closeAddMenu(); return; }
-                    const r      = addMenuTrigger.value.getBoundingClientRect();
-                    const div    = document.createElement('div');
+                const openTypePicker = (itemId, triggerEl) => {
+                    if (typePickerPortal.value) { closeTypePicker(); return; }
+
+                    typePickerItemId.value = itemId;
+                    typePickerTrigger      = triggerEl;
+
+                    const r      = triggerEl.getBoundingClientRect();
+                    const left   = Math.max(8, r.left + r.width / 2 - 90);
                     const isDark = document.documentElement.classList.contains('dark');
-                    const menuBg     = isDark ? '#1f2937' : '#ffffff';
-                    const menuHover  = isDark ? '#374151' : '#f3f4f6';
-                    const menuText   = isDark ? '#d1d5db' : '#111827';
-                    const menuBorder = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.10)';
-                    const menuShadow = isDark ? '0 4px 16px rgba(0,0,0,0.4)' : '0 4px 16px rgba(0,0,0,0.12)';
+                    const bg     = isDark ? '#1f2937' : '#ffffff';
+                    const hover  = isDark ? '#374151' : '#f3f4f6';
+                    const text   = isDark ? '#d1d5db' : '#111827';
+                    const border = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.10)';
+                    const shadow = isDark ? '0 4px 16px rgba(0,0,0,0.4)' : '0 4px 16px rgba(0,0,0,0.12)';
 
-                    div.style.cssText = `position:fixed;z-index:99999;top:${r.bottom + 4}px;left:${r.left}px;background:${menuBg};border-radius:6px;border:1px solid ${menuBorder};box-shadow:${menuShadow};min-width:180px;overflow:hidden;`;
-                    addMenuSets.value.forEach(({ handle, display }) => {
+                    const div = document.createElement('div');
+                    div.style.cssText = `position:fixed;z-index:99999;top:${r.bottom + 6}px;left:${left}px;background:${bg};border-radius:6px;border:1px solid ${border};box-shadow:${shadow};min-width:180px;overflow:hidden;`;
+
+                    columnSets.value.forEach(({ handle, display }) => {
                         const btn = document.createElement('button');
-                        btn.type = 'button';
+                        btn.type        = 'button';
                         btn.textContent = display;
-                        btn.style.cssText = `display:block;width:100%;text-align:left;padding:10px 16px;background:none;border:none;color:${menuText};cursor:pointer;font-size:13px;`;
-                        btn.addEventListener('mouseenter', () => { btn.style.background = menuHover; });
+                        btn.style.cssText = `display:block;width:100%;text-align:left;padding:10px 16px;background:none;border:none;color:${text};cursor:pointer;font-size:13px;`;
+                        btn.addEventListener('mouseenter', () => { btn.style.background = hover; });
                         btn.addEventListener('mouseleave', () => { btn.style.background = 'none'; });
-                        btn.addEventListener('click', () => addItem(handle));
+                        btn.addEventListener('click', () => setColumnType(itemId, handle));
                         div.appendChild(btn);
                     });
+
                     document.body.appendChild(div);
-                    addMenuPortal.value = div;
-                    document.addEventListener('click', handleClickOutsideAddMenu, true);
-                    window.addEventListener('scroll', updateAddMenuPos, true);
+                    typePickerPortal.value = div;
+                    document.addEventListener('click', handleClickOutsideTypePicker, true);
+                    window.addEventListener('scroll', updateTypePickerPos, true);
                 };
 
-                onUnmounted(() => closeAddMenu());
+                const setColumnType = (itemId, handle) => {
+                    closeTypePicker();
+                    const setMeta      = (props.meta?.new || {})[handle] || { _: '_' };
+                    const updatedItems = items.value.map(item =>
+                        item._id === itemId ? { ...item, type: handle } : item
+                    );
+                    emit('update:value', updatedItems);
+                    emit('update:meta', {
+                        ...props.meta,
+                        existing: { ...(props.meta?.existing || {}), [itemId]: setMeta },
+                    });
+                    const updatedItem = updatedItems.find(i => i._id === itemId);
+                    if (updatedItem) nextTick(() => openEditor(updatedItem));
+                };
 
+                onUnmounted(() => closeTypePicker());
+
+                // ── Width helpers ─────────────────────────────────────────────
                 const getWidth = (item, bp) => {
                     const n = parseInt(item?.[BP_FIELD[bp]], 10);
                     return (n > 0 && n <= 12) ? n : (BP_DEFAULT[bp] || 4);
@@ -134,13 +161,14 @@
 
                 const setWidthFromPct = (itemId, pct) => setWidth(itemId, PCT_TO_W[pct] || 12);
 
-                const hoverState = ref({ id: null, pct: null });
+                const hoverState    = ref({ id: null, pct: null });
                 const setHoverPct   = (id, pct) => { hoverState.value = { id, pct }; };
                 const clearHoverPct = ()         => { hoverState.value = { id: null, pct: null }; };
                 const displayPct    = (item)     => hoverState.value.id === item._id
                     ? hoverState.value.pct
                     : getWidthPct(item, currentBp.value);
 
+                // ── Preview helpers ───────────────────────────────────────────
                 const bardToText = (nodes) => {
                     if (!Array.isArray(nodes)) return '';
                     const parts = [];
@@ -166,7 +194,7 @@
                             const arr = Array.isArray(val) ? val : [val];
                             if (arr.length > 0) {
                                 const name = String(arr[0]).split('/').pop();
-                                return { kind: 'file', text: name || `${arr.length} fil` };
+                                return { kind: 'file', text: name || `${arr.length} file` };
                             }
                         }
                         if (ft === 'bard' && Array.isArray(val)) {
@@ -185,6 +213,7 @@
                     return null;
                 };
 
+                // ── Popup (field editor) ──────────────────────────────────────
                 const popupStyle = ref('');
                 const calcPopupStyle = () => {
                     const lp = document.querySelector('.live-preview-editor');
@@ -228,17 +257,15 @@
                     if (!item && editingId.value) closeEditor();
                 });
 
+                // Track known IDs — no auto-open; setColumnType handles opening
+                // the editor after a type is selected on a fresh empty column.
                 const knownIds = new Set(items.value.map(i => i._id));
                 watch(items, (newItems) => {
-                    newItems.forEach(item => {
-                        if (!knownIds.has(item._id)) {
-                            knownIds.add(item._id);
-                            nextTick(() => openEditor(item));
-                        }
-                    });
+                    newItems.forEach(item => { knownIds.add(item._id); });
                 });
 
                 const openEditor = (item) => {
+                    if (!item.type) return;
                     calcPopupStyle();
                     editingId.value     = item._id;
                     editingValues.value = { ...item };
@@ -311,7 +338,7 @@
                 return {
                     uid, portalName, popupClass, popupStyle,
                     breakpoints, W_PCTS, currentBp, items,
-                    addMenuTrigger, openAddMenu,
+                    addColumn, openTypePicker,
                     getWidth, getWidthPct, setWidthFromPct,
                     hoverState, setHoverPct, clearHoverPct, displayPct,
                     typeDisplayLabel, getItemPreview,
@@ -325,7 +352,7 @@
                 <div :data-cbid="uid">
 
                     <!-- ════════════════════════════════
-                         POPUP (editor for kolonne-felter)
+                         POPUP (field editor)
                          ════════════════════════════════ -->
                     <portal :name="portalName">
                         <div
@@ -343,10 +370,10 @@
                                         class="text-gray-500 hover:text-gray-300 transition-colors text-2xl leading-none px-1 bg-transparent border-0 cursor-pointer">×</button>
                                 </div>
 
-                                <!-- Felter -->
+                                <!-- Fields -->
                                 <div class="p-6 space-y-6">
                                     <div v-if="!editingSetFields.length"
-                                         class="text-center text-sm text-gray-500 py-4">Ingen felter</div>
+                                         class="text-center text-sm text-gray-500 py-4">No fields</div>
 
                                     <div v-for="field in editingSetFields" :key="field.handle">
                                         <label class="block text-xs font-semibold uppercase tracking-widest text-gray-500 mb-2">
@@ -368,7 +395,7 @@
                                 <div class="flex justify-end px-5 py-3 border-t border-gray-700">
                                     <button type="button" @click="closeEditor"
                                         class="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium rounded-lg border-0 cursor-pointer transition-colors">
-                                        Færdig
+                                        Done
                                     </button>
                                 </div>
                             </div>
@@ -376,11 +403,11 @@
                     </portal>
 
                     <!-- ════════════════════════════════
-                         GRID-VISUALISERING
+                         GRID
                          ════════════════════════════════ -->
                     <div class="rounded-lg border border-gray-700/60 overflow-hidden mb-1.5">
 
-                        <!-- Header: breakpoint-select til venstre -->
+                        <!-- Breakpoint selector -->
                         <div class="flex items-center px-3 py-2 bg-gray-800/40 border-b border-gray-700/40">
                             <select
                                 v-model="currentBp"
@@ -390,10 +417,9 @@
                             </select>
                         </div>
 
-                        <!-- Grid-canvas -->
+                        <!-- Grid canvas -->
                         <div class="p-3 bg-gray-900/30 min-h-35">
 
-                            <!-- Kolonner -->
                             <div v-if="items.length > 0" class="grid grid-cols-12 gap-2">
                                 <div
                                     v-for="item in items"
@@ -406,17 +432,30 @@
                                             : 'border-gray-700/70 bg-gray-800/50 hover:border-gray-600'
                                     ]"
                                 >
-                                    <!-- × Slet (top-right) -->
+                                    <!-- × Delete -->
                                     <button
                                         type="button"
                                         @click.stop="removeItem(item._id)"
                                         class="absolute top-1.5 right-1.5 z-10 w-4 h-4 flex items-center justify-center rounded-full border-0 bg-transparent text-red-400/40 hover:text-red-400 transition-colors cursor-pointer text-sm leading-none p-0"
-                                        title="Slet kolonne"
+                                        title="Delete column"
                                     >×</button>
 
-                                    <!-- Klikbart midterfelt: åbner editor -->
+                                    <!-- Empty column: click + to pick type -->
                                     <div
-                                        @click="openEditor(item)"
+                                        v-if="!item.type"
+                                        @click.stop="openTypePicker(item._id, $event.currentTarget)"
+                                        class="flex-1 flex items-center justify-center cursor-pointer text-gray-600 hover:text-gray-400 transition-colors"
+                                        title="Choose column type"
+                                    >
+                                        <svg width="22" height="22" viewBox="0 0 22 22" fill="currentColor">
+                                            <path d="M11.5 3v7.5H19v1h-7.5V19h-1v-7.5H3v-1h7.5V3z"/>
+                                        </svg>
+                                    </div>
+
+                                    <!-- Filled column: click to edit -->
+                                    <div
+                                        v-else
+                                        @click.stop="openEditor(item)"
                                         class="flex-1 px-3 pt-3 pb-2 cursor-pointer flex flex-col gap-1"
                                     >
                                         <span class="text-xs font-semibold text-gray-200 truncate pr-4 leading-tight">
@@ -428,7 +467,7 @@
                                         >{{ getItemPreview(item).text }}</span>
                                     </div>
 
-                                    <!-- Bund: custom width-selector + edit-knap -->
+                                    <!-- Bottom: width selector + edit button -->
                                     <div class="flex items-center justify-between px-2.5 py-2 border-t border-gray-700/40" @click.stop>
 
                                         <div
@@ -452,12 +491,13 @@
                                             </div>
                                         </div>
 
-                                        <!-- Rediger-knap -->
+                                        <!-- Edit button (only when type is set) -->
                                         <button
+                                            v-if="item.type"
                                             type="button"
                                             @click.stop="openEditor(item)"
                                             class="flex items-center justify-center w-6 h-6 rounded border border-gray-700 bg-transparent text-gray-400 hover:text-gray-200 hover:border-gray-500 transition-colors cursor-pointer"
-                                            title="Rediger"
+                                            title="Edit"
                                         >
                                             <svg width="11" height="11" viewBox="0 0 16 16" fill="none">
                                                 <path d="M11.5 1.5a1.5 1.5 0 0 1 2.12 2.12L5 12.24l-2.5.5.5-2.5L11.5 1.5z"
@@ -468,26 +508,23 @@
                                 </div>
                             </div>
 
-                            <!-- Tom tilstand -->
+                            <!-- Empty state -->
                             <div v-else class="h-27.5 flex items-center justify-center">
-                                <span class="text-xs text-gray-600">Tilføj en kolonne for at starte</span>
+                                <span class="text-xs text-gray-600">Add a column to get started</span>
                             </div>
                         </div>
                     </div>
 
-                    <!-- ════════════════════════════════
-                         TILFØJ KOLONNE-KNAP
-                         ════════════════════════════════ -->
+                    <!-- ADD COLUMN BUTTON -->
                     <button
-                        ref="addMenuTrigger"
                         type="button"
-                        @click="openAddMenu"
+                        @click="addColumn"
                         class="inline-flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-300 border border-dashed border-gray-600/60 hover:border-gray-500/60 px-3 py-1.5 rounded-md transition-colors cursor-pointer bg-transparent"
                     >
                         <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
                             <path d="M5.5 1v3.5H9v1H5.5V9h-1V5.5H1v-1h3.5V1z"/>
                         </svg>
-                        Tilføj kolonne
+                        Add column
                     </button>
 
                 </div>
