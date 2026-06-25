@@ -2,7 +2,7 @@
     'use strict';
 
     Statamic.booting(() => {
-        const { ref, computed, watch, nextTick, onUnmounted } = window.Vue;
+        const { ref, computed, watch, nextTick, onUnmounted, provide } = window.Vue;
 
         const BP_FIELD   = { mobile: 'col_w_m', tablet: 'col_w_t', desktop: 'col_w_d' };
         const BP_DEFAULT = { mobile: 12, tablet: 6, desktop: 4 };
@@ -216,7 +216,7 @@
                     for (const field of fields) {
                         const val = item[field.handle];
                         if (val === undefined || val === null || val === '') continue;
-                        const ft = field.config?.type;
+                        const ft = field.type || field.config?.type;
                         if (ft === 'assets') {
                             const arr = Array.isArray(val) ? val : [val];
                             if (arr.length > 0) {
@@ -259,6 +259,17 @@
                 const editingId     = ref(null);
                 const editingValues = ref({});
                 const editingMeta   = ref({});
+
+                // Provide Statamic's publish context so nested fieldtypes (bard)
+                // can inject it — bard needs this to fully initialize its toolbar.
+                provide('PublishContainerContext', {
+                    values: editingValues,
+                    meta:   editingMeta,
+                    site:   ref(null),
+                    readOnly: ref(false),
+                    localizations: ref([]),
+                    fields: computed(() => []),
+                });
 
                 const editingItem = computed(() =>
                     editingId.value ? items.value.find(i => i._id === editingId.value) : null
@@ -333,7 +344,7 @@
 
                 const resolveFieldMeta = (field) => {
                     const meta = editingMeta.value[field.handle];
-                    if (field.config?.type === 'bard') {
+                    if (field.type || field.config?.type === 'bard') {
                         if (meta == null || !Object.prototype.hasOwnProperty.call(meta, 'collapsed')) {
                             return BARD_META_FALLBACK;
                         }
@@ -343,14 +354,14 @@
 
                 const resolveFieldValue = (field) => {
                     const val = editingValues.value[field.handle];
-                    if (field.config?.type === 'bard' && (val === undefined || val === null)) {
+                    if (field.type || field.config?.type === 'bard' && (val === undefined || val === null)) {
                         return [];
                     }
                     return val !== undefined ? val : null;
                 };
 
                 const resolveFieldConfig = (field) => {
-                    if (field.config?.type === 'bard') {
+                    if (field.type || field.config?.type === 'bard') {
                         return { sets: [], ...field.config };
                     }
                     return field.config;
@@ -403,7 +414,7 @@
                                             {{ field.display || field.handle }}
                                         </label>
                                         <component
-                                            :is="(field.config.type || 'text') + '-fieldtype'"
+                                            :is="(field.type || field.config?.type || 'text') + '-fieldtype'"
                                             :value="resolveFieldValue(field)"
                                             :meta="resolveFieldMeta(field)"
                                             :config="resolveFieldConfig(field)"

@@ -71,7 +71,8 @@ class ColumnBuilder extends Replicator
                         ->map(fn ($field) => [
                             'handle'  => $field->handle(),
                             'display' => $field->display(),
-                            'config'  => $field->config(),
+                            'type'    => $field->type(),
+                            'config'  => array_merge(['type' => $field->type()], $field->config()),
                         ])
                         ->values()
                         ->all(),
