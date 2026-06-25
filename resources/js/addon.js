@@ -25,6 +25,35 @@
                     .${popupClass} .bard-editor > div { flex:1 !important; min-height:0 !important; display:flex !important; flex-direction:column !important; }
                     .${popupClass} .bard-editor .ProseMirror { flex:1 !important; min-height:200px !important; overflow-y:auto !important; }
                     .${popupClass} .bard-editor .bard-content { min-height:200px !important; }
+
+                    /* Column card */
+                    [data-cbid="${uid}"] .cb-col { background:#18181c; border:1px solid #26262c; }
+                    [data-cbid="${uid}"] .cb-col--active { border-color:#3b5bdb; background:#1a1e2e; }
+                    [data-cbid="${uid}"] .cb-col:hover:not(.cb-col--active) { border-color:#32323c; }
+
+                    /* Delete button */
+                    [data-cbid="${uid}"] .cb-col-delete { color:#3a3a42; }
+                    [data-cbid="${uid}"] .cb-col-delete:hover { color:#f87171; }
+
+                    /* Empty + icon */
+                    [data-cbid="${uid}"] .cb-col-plus { color:#2e2e36; }
+                    [data-cbid="${uid}"] .cb-col-plus:hover { color:#52525e; }
+
+                    /* Width pill */
+                    [data-cbid="${uid}"] .cb-width-pill { width:52px; height:22px; border-radius:6px; overflow:hidden; background:#111116; border:1px solid #26262c; }
+                    [data-cbid="${uid}"] .cb-width-segments { display:flex; width:100%; height:100%; }
+                    [data-cbid="${uid}"] .cb-seg { flex:1; border-left:1px solid #26262c; transition:background .1s; }
+                    [data-cbid="${uid}"] .cb-seg:first-child { border-left:none; }
+                    [data-cbid="${uid}"] .cb-seg--on { background:#3a3a46; }
+                    [data-cbid="${uid}"] .cb-seg:hover { background:#4a4a58; }
+
+                    /* Edit button */
+                    [data-cbid="${uid}"] .cb-edit-btn { background:#3b5bdb; color:#fff; }
+                    [data-cbid="${uid}"] .cb-edit-btn:hover { background:#4c6ef5; }
+
+                    /* Add column button */
+                    [data-cbid="${uid}"] .cb-add-btn { background:#18181c; color:#6b7280; border:1px dashed #2e2e36; }
+                    [data-cbid="${uid}"] .cb-add-btn:hover { color:#d1d5db; border-color:#52525e; }
                 `;
                 document.head.appendChild(styleEl);
                 onUnmounted(() => document.head.removeChild(styleEl));
@@ -405,20 +434,21 @@
                     <!-- ════════════════════════════════
                          GRID
                          ════════════════════════════════ -->
-                    <div class="rounded-lg border border-gray-700/60 overflow-hidden mb-1.5">
+                    <div class="rounded-xl overflow-hidden mb-2" style="background:#0d0d10;border:1px solid #1e1e24;">
 
                         <!-- Breakpoint selector -->
-                        <div class="flex items-center px-3 py-2 bg-gray-800/40 border-b border-gray-700/40">
+                        <div class="flex items-center px-3 py-2" style="border-bottom:1px solid #1e1e24;">
                             <select
                                 v-model="currentBp"
-                                class="text-xs px-2 py-1 rounded-md border border-gray-700 bg-gray-800 text-gray-300 cursor-pointer outline-none focus:border-blue-500 transition-colors"
+                                class="text-xs px-2 py-1 rounded-md cursor-pointer outline-none transition-colors"
+                                style="border:1px solid #2a2a32;background:#18181c;color:#9ca3af;"
                             >
                                 <option v-for="bp in breakpoints" :key="bp.handle" :value="bp.handle">{{ bp.label }}</option>
                             </select>
                         </div>
 
                         <!-- Grid canvas -->
-                        <div class="p-3 bg-gray-900/30 min-h-35">
+                        <div class="p-3 min-h-35">
 
                             <div v-if="items.length > 0" class="grid grid-cols-12 gap-2">
                                 <div
@@ -426,17 +456,15 @@
                                     :key="item._id"
                                     :style="{ gridColumn: 'span ' + getWidth(item, currentBp) }"
                                     :class="[
-                                        'relative flex flex-col rounded-md border transition-colors min-h-30',
-                                        editingId === item._id
-                                            ? 'border-blue-500/40 bg-blue-950/20'
-                                            : 'border-gray-700/70 bg-gray-800/50 hover:border-gray-600'
+                                        'cb-col relative flex flex-col rounded-xl transition-all min-h-36',
+                                        editingId === item._id ? 'cb-col--active' : ''
                                     ]"
                                 >
                                     <!-- × Delete -->
                                     <button
                                         type="button"
                                         @click.stop="removeItem(item._id)"
-                                        class="absolute top-1.5 right-1.5 z-10 w-4 h-4 flex items-center justify-center rounded-full border-0 bg-transparent text-red-400/40 hover:text-red-400 transition-colors cursor-pointer text-sm leading-none p-0"
+                                        class="cb-col-delete absolute top-2 right-2 z-10 w-5 h-5 flex items-center justify-center rounded-full border-0 bg-transparent transition-colors cursor-pointer text-sm leading-none p-0"
                                         title="Delete column"
                                     >×</button>
 
@@ -444,11 +472,11 @@
                                     <div
                                         v-if="!item.type"
                                         @click.stop="openTypePicker(item._id, $event.currentTarget)"
-                                        class="flex-1 flex items-center justify-center cursor-pointer text-gray-600 hover:text-gray-400 transition-colors"
+                                        class="flex-1 flex items-center justify-center cursor-pointer transition-colors cb-col-plus"
                                         title="Choose column type"
                                     >
-                                        <svg width="22" height="22" viewBox="0 0 22 22" fill="currentColor">
-                                            <path d="M11.5 3v7.5H19v1h-7.5V19h-1v-7.5H3v-1h7.5V3z"/>
+                                        <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                                            <path d="M10.75 2v7.25H18v1.5h-7.25V18h-1.5v-7.25H2v-1.5h7.25V2z"/>
                                         </svg>
                                     </div>
 
@@ -456,37 +484,36 @@
                                     <div
                                         v-else
                                         @click.stop="openEditor(item)"
-                                        class="flex-1 px-3 pt-3 pb-2 cursor-pointer flex flex-col gap-1"
+                                        class="flex-1 px-4 pt-4 pb-3 cursor-pointer flex flex-col gap-1.5"
                                     >
-                                        <span class="text-xs font-semibold text-gray-200 truncate pr-4 leading-tight">
+                                        <span class="text-sm font-semibold truncate pr-5 leading-tight" style="color:#e5e7eb;">
                                             {{ typeDisplayLabel(item.type) }}
                                         </span>
                                         <span
                                             v-if="getItemPreview(item)"
-                                            class="text-[11px] text-gray-500 leading-snug line-clamp-2"
+                                            class="text-xs leading-snug line-clamp-2"
+                                            style="color:#6b7280;"
                                         >{{ getItemPreview(item).text }}</span>
                                     </div>
 
-                                    <!-- Bottom: width selector + edit button -->
-                                    <div class="flex items-center justify-between px-2.5 py-2 border-t border-gray-700/40" @click.stop>
+                                    <!-- Bottom: width pill + edit button -->
+                                    <div class="flex items-center justify-between px-3 pb-3 pt-1" @click.stop>
 
+                                        <!-- Width pill (click cycles through presets) -->
                                         <div
-                                            class="relative flex h-6 w-14 cursor-pointer overflow-hidden rounded border border-gray-700 bg-gray-800 font-mono text-[10px] antialiased"
+                                            class="cb-width-pill relative cursor-pointer font-mono text-[10px]"
                                             @mouseleave.stop="clearHoverPct()"
                                         >
-                                            <div class="flex w-full">
+                                            <div class="cb-width-segments flex">
                                                 <div
                                                     v-for="pct in W_PCTS"
                                                     :key="pct"
-                                                    :class="[
-                                                        'flex-1 border-l border-gray-700/60 first:border-l-0 transition-colors',
-                                                        displayPct(item) >= pct ? 'bg-gray-600' : ''
-                                                    ]"
+                                                    :class="['cb-seg', displayPct(item) >= pct ? 'cb-seg--on' : '']"
                                                     @mouseenter.stop="setHoverPct(item._id, pct)"
                                                     @click.stop="setWidthFromPct(item._id, pct)"
                                                 />
                                             </div>
-                                            <div class="pointer-events-none absolute inset-0 z-10 flex items-center justify-center font-medium text-gray-200">
+                                            <div class="pointer-events-none absolute inset-0 flex items-center justify-center font-medium" style="color:#d1d5db;">
                                                 {{ displayPct(item) }}%
                                             </div>
                                         </div>
@@ -496,10 +523,10 @@
                                             v-if="item.type"
                                             type="button"
                                             @click.stop="openEditor(item)"
-                                            class="flex items-center justify-center w-6 h-6 rounded border border-gray-700 bg-transparent text-gray-400 hover:text-gray-200 hover:border-gray-500 transition-colors cursor-pointer"
+                                            class="cb-edit-btn flex items-center justify-center w-8 h-8 rounded-lg border-0 cursor-pointer transition-colors"
                                             title="Edit"
                                         >
-                                            <svg width="11" height="11" viewBox="0 0 16 16" fill="none">
+                                            <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
                                                 <path d="M11.5 1.5a1.5 1.5 0 0 1 2.12 2.12L5 12.24l-2.5.5.5-2.5L11.5 1.5z"
                                                       stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
                                             </svg>
@@ -510,7 +537,7 @@
 
                             <!-- Empty state -->
                             <div v-else class="h-27.5 flex items-center justify-center">
-                                <span class="text-xs text-gray-600">Add a column to get started</span>
+                                <span class="text-xs" style="color:#3a3a42;">Add a column to get started</span>
                             </div>
                         </div>
                     </div>
@@ -519,7 +546,7 @@
                     <button
                         type="button"
                         @click="addColumn"
-                        class="inline-flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-300 border border-dashed border-gray-600/60 hover:border-gray-500/60 px-3 py-1.5 rounded-md transition-colors cursor-pointer bg-transparent"
+                        class="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg transition-colors cursor-pointer border-0 cb-add-btn"
                     >
                         <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
                             <path d="M5.5 1v3.5H9v1H5.5V9h-1V5.5H1v-1h3.5V1z"/>
