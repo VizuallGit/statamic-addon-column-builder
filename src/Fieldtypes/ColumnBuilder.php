@@ -7,7 +7,7 @@ use Statamic\Fieldtypes\Replicator;
 class ColumnBuilder extends Replicator
 {
     protected static $handle = 'column_builder';
-    protected $selectable = false;
+    protected $selectable = true;
 
     public function component(): string
     {
