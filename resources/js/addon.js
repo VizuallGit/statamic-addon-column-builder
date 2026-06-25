@@ -243,7 +243,31 @@
                 // ── Popup (field editor) ──────────────────────────────────────
                 const popupStyle = ref('');
                 const calcPopupStyle = () => {
-                    popupStyle.value = 'position:fixed;inset:0;z-index:9000;display:flex;align-items:center;justify-content:center;padding:20px;';
+                    // In live preview mode, find the CP editing panel (scrollable ancestor
+                    // narrower than the full viewport) so the overlay doesn't cover the preview iframe
+                    const myEl = document.querySelector(`[data-cbid="${uid}"]`);
+                    let panelRect = null;
+
+                    if (myEl) {
+                        let el = myEl.parentElement;
+                        while (el && el !== document.documentElement) {
+                            const style = window.getComputedStyle(el);
+                            const rect  = el.getBoundingClientRect();
+                            const scrollable = style.overflowY === 'auto' || style.overflowY === 'scroll' ||
+                                               style.overflow  === 'auto' || style.overflow  === 'scroll';
+                            if (scrollable && rect.width < window.innerWidth * 0.95 && rect.width > 100) {
+                                panelRect = rect;
+                                break;
+                            }
+                            el = el.parentElement;
+                        }
+                    }
+
+                    if (panelRect) {
+                        popupStyle.value = `position:fixed;top:0;left:${panelRect.left}px;width:${panelRect.width}px;height:100vh;z-index:9000;display:flex;align-items:center;justify-content:center;padding:20px;`;
+                    } else {
+                        popupStyle.value = 'position:fixed;inset:0;z-index:9000;display:flex;align-items:center;justify-content:center;padding:20px;';
+                    }
                 };
 
                 const typeDisplayLabel = (type) => {
