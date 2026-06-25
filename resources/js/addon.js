@@ -21,10 +21,8 @@
 
                 const styleEl = document.createElement('style');
                 styleEl.textContent = `
-                    .${popupClass} .bard-editor { min-height:220px !important; display:flex !important; flex-direction:column !important; }
-                    .${popupClass} .bard-editor > div { flex:1 !important; min-height:0 !important; display:flex !important; flex-direction:column !important; }
-                    .${popupClass} .bard-editor .ProseMirror { flex:1 !important; min-height:160px !important; }
                     .${popupClass} .bard-editor .bard-content { min-height:160px !important; }
+                    .${popupClass} .bard-editor .ProseMirror { min-height:160px !important; }
 
                     /* Column card */
                     [data-cbid="${uid}"] .cb-col { background:#18181c; border:1px solid #26262c; }
