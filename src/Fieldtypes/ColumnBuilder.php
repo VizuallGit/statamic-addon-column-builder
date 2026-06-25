@@ -54,7 +54,7 @@ class ColumnBuilder extends Replicator
                     try {
                         $meta->put($field->handle(), $field->fieldtype()->preload());
                     } catch (\Throwable $e) {
-                        // Feltet får ingen meta — fieldtypen bruger sine defaults
+                        \Log::warning('ColumnBuilder preload failed for field [' . $field->handle() . '] type [' . $field->type() . ']: ' . $e->getMessage());
                     }
                 }
                 return $meta;

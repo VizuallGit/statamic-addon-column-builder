@@ -24,16 +24,6 @@
                     .${popupClass} .bard-editor .bard-content { min-height:160px !important; }
                     .${popupClass} .bard-editor .ProseMirror { min-height:160px !important; }
 
-                    /* Force bard toolbar visible (debug: reveals if it exists but is hidden) */
-                    .${popupClass} .bard-toolbar,
-                    .${popupClass} .bard-toolbar-wrapper,
-                    .${popupClass} [class*="bard-toolbar"] {
-                        display: flex !important;
-                        visibility: visible !important;
-                        opacity: 1 !important;
-                        pointer-events: auto !important;
-                    }
-
                     /* Column card */
                     [data-cbid="${uid}"] .cb-col { background:#18181c; border:1px solid #26262c; }
                     [data-cbid="${uid}"] .cb-col--active { border-color:#3b5bdb; background:#1a1e2e; }
@@ -368,7 +358,14 @@
                     return val !== undefined ? val : null;
                 };
 
-                const resolveFieldConfig = (field) => field.config;
+                const resolveFieldConfig = (field) => {
+                    if (isBard(field)) {
+                        // toolbar_mode default is 'fixed' in Statamic but is not applied to raw field.config()
+                        // without it toolbarIsFixed = false → showFixedToolbar = false → toolbar never renders
+                        return { toolbar_mode: 'fixed', sets: [], ...field.config };
+                    }
+                    return field.config;
+                };
 
                 return {
                     uid, portalName, popupClass, popupStyle,
