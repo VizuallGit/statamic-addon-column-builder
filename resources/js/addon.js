@@ -21,10 +21,10 @@
 
                 const styleEl = document.createElement('style');
                 styleEl.textContent = `
-                    .${popupClass} .bard-editor { min-height:280px !important; height:280px !important; display:flex !important; flex-direction:column !important; }
+                    .${popupClass} .bard-editor { min-height:220px !important; display:flex !important; flex-direction:column !important; }
                     .${popupClass} .bard-editor > div { flex:1 !important; min-height:0 !important; display:flex !important; flex-direction:column !important; }
-                    .${popupClass} .bard-editor .ProseMirror { flex:1 !important; min-height:200px !important; overflow-y:auto !important; }
-                    .${popupClass} .bard-editor .bard-content { min-height:200px !important; }
+                    .${popupClass} .bard-editor .ProseMirror { flex:1 !important; min-height:160px !important; }
+                    .${popupClass} .bard-editor .bard-content { min-height:160px !important; }
 
                     /* Column card */
                     [data-cbid="${uid}"] .cb-col { background:#18181c; border:1px solid #26262c; }
@@ -245,13 +245,7 @@
                 // ── Popup (field editor) ──────────────────────────────────────
                 const popupStyle = ref('');
                 const calcPopupStyle = () => {
-                    const lp = document.querySelector('.live-preview-editor');
-                    if (lp) {
-                        const r = lp.getBoundingClientRect();
-                        popupStyle.value = `position:fixed;top:${r.top}px;left:${r.left}px;width:${r.width}px;height:${r.height}px;z-index:9000;display:flex;align-items:flex-start;justify-content:center;overflow-y:auto;padding:40px 16px;`;
-                    } else {
-                        popupStyle.value = 'position:fixed;inset:0;z-index:9000;display:flex;align-items:flex-start;justify-content:center;overflow-y:auto;padding:48px 20px;';
-                    }
+                    popupStyle.value = 'position:fixed;inset:0;z-index:9000;display:flex;align-items:center;justify-content:center;padding:20px;';
                 };
 
                 const typeDisplayLabel = (type) => {
@@ -387,20 +381,22 @@
                         <div
                             v-if="editingId"
                             :class="popupClass"
-                            :style="popupStyle + 'background:rgba(0,0,0,0.55);'"
+                            :style="popupStyle + 'background:rgba(0,0,0,0.6);'"
                             @click.self="closeEditor"
                         >
-                            <div class="w-full max-w-2xl rounded-xl overflow-hidden shadow-2xl border border-gray-700 bg-gray-800">
-
-                                <!-- Header -->
-                                <div class="flex items-center justify-between px-5 py-4 border-b border-gray-700">
+                            <div
+                                class="w-full max-w-2xl rounded-xl shadow-2xl border border-gray-700 bg-gray-800"
+                                style="max-height:calc(100vh - 40px);display:flex;flex-direction:column;"
+                            >
+                                <!-- Header (fixed) -->
+                                <div class="flex items-center justify-between px-5 py-4 border-b border-gray-700 flex-shrink-0">
                                     <span class="text-sm font-semibold text-gray-100">{{ editingSetLabel }}</span>
                                     <button type="button" @click="closeEditor"
                                         class="text-gray-500 hover:text-gray-300 transition-colors text-2xl leading-none px-1 bg-transparent border-0 cursor-pointer">×</button>
                                 </div>
 
-                                <!-- Fields -->
-                                <div class="p-6 space-y-6">
+                                <!-- Fields (scrollable) -->
+                                <div class="p-6 space-y-6 overflow-y-auto flex-1">
                                     <div v-if="!editingSetFields.length"
                                          class="text-center text-sm text-gray-500 py-4">No fields</div>
 
@@ -420,8 +416,8 @@
                                     </div>
                                 </div>
 
-                                <!-- Footer -->
-                                <div class="flex justify-end px-5 py-3 border-t border-gray-700">
+                                <!-- Footer (fixed) -->
+                                <div class="flex justify-end px-5 py-3 border-t border-gray-700 flex-shrink-0">
                                     <button type="button" @click="closeEditor"
                                         class="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium rounded-lg border-0 cursor-pointer transition-colors">
                                         Done
