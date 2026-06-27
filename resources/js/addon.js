@@ -5,6 +5,7 @@
         const { ref, computed, watch, nextTick, onUnmounted, provide, inject } = window.Vue;
 
         const BP_FIELD   = { mobile: 'col_w_m', tablet: 'col_w_t', desktop: 'col_w_d' };
+        const BP_PREFIX  = { mobile: '', tablet: 'md:', desktop: 'lg:' };
         const BP_DEFAULT = { mobile: 12, tablet: 6, desktop: 4 };
 
         Statamic.$components.register('column-builder-fieldtype', {
@@ -87,7 +88,7 @@
                 // ── Add empty column ──────────────────────────────────────────
                 const addColumn = () => {
                     const newId   = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-                    const newItem = { _id: newId, type: null, enabled: true, col_w_m: '12', col_w_t: '6', col_w_d: '4' };
+                    const newItem = { _id: newId, type: null, enabled: true, col_w_m: 'col-span-12', col_w_t: 'md:col-span-6', col_w_d: 'lg:col-span-4' };
                     emit('update:value', [...items.value, newItem]);
                 };
 
@@ -173,16 +174,18 @@
 
                 // ── Width helpers ─────────────────────────────────────────────
                 const getWidth = (item, bp) => {
-                    const n = parseInt(item?.[BP_FIELD[bp]], 10);
+                    const raw = String(item?.[BP_FIELD[bp]] ?? '');
+                    const n = parseInt(raw.match(/(\d+)$/)?.[1] ?? raw, 10);
                     return (n > 0 && n <= 12) ? n : (BP_DEFAULT[bp] || 4);
                 };
 
                 const getWidthPct = (item, bp) => W_TO_PCT[getWidth(item, bp)] || 100;
 
                 const setWidth = (itemId, w) => {
-                    const field = BP_FIELD[currentBp.value];
+                    const field  = BP_FIELD[currentBp.value];
+                    const prefix = BP_PREFIX[currentBp.value];
                     emit('update:value', items.value.map(item =>
-                        item._id === itemId ? { ...item, [field]: String(w) } : item
+                        item._id === itemId ? { ...item, [field]: prefix + 'col-span-' + w } : item
                     ));
                 };
 

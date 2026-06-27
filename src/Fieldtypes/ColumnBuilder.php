@@ -45,8 +45,10 @@ class ColumnBuilder extends Replicator
             $prefixes = ['col_w_m' => '', 'col_w_t' => 'md:', 'col_w_d' => 'lg:'];
             foreach ($prefixes as $handle => $prefix) {
                 if (isset($extra[$handle]) && is_numeric($extra[$handle])) {
+                    // Legacy: old entries stored plain numbers — add prefix
                     $extra[$handle] = $prefix . 'col-span-' . $extra[$handle];
                 }
+                // New entries already store the full Tailwind class — pass through unchanged
             }
             $data = $item instanceof Values ? $item->toArray() : (array) $item;
             return new Values(array_merge($extra, $data));
