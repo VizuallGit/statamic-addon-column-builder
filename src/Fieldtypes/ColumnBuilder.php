@@ -42,9 +42,10 @@ class ColumnBuilder extends Replicator
             if (! $extra) {
                 return $item;
             }
-            foreach (['col_w_m', 'col_w_t', 'col_w_d'] as $handle) {
+            $prefixes = ['col_w_m' => '', 'col_w_t' => 'md:', 'col_w_d' => 'lg:'];
+            foreach ($prefixes as $handle => $prefix) {
                 if (isset($extra[$handle]) && is_numeric($extra[$handle])) {
-                    $extra[$handle] = 'col-span-' . $extra[$handle];
+                    $extra[$handle] = $prefix . 'col-span-' . $extra[$handle];
                 }
             }
             $data = $item instanceof Values ? $item->toArray() : (array) $item;
