@@ -42,6 +42,11 @@ class ColumnBuilder extends Replicator
             if (! $extra) {
                 return $item;
             }
+            foreach (['col_w_m', 'col_w_t', 'col_w_d'] as $handle) {
+                if (isset($extra[$handle]) && is_numeric($extra[$handle])) {
+                    $extra[$handle] = 'col-span-' . $extra[$handle];
+                }
+            }
             $data = $item instanceof Values ? $item->toArray() : (array) $item;
             return new Values(array_merge($extra, $data));
         })->all();
