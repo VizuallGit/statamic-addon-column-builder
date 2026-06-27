@@ -2,6 +2,8 @@
 
 namespace Vizuall\ColumnBuilder\Fieldtypes;
 
+use Illuminate\Support\Arr;
+use Statamic\Fields\Values;
 use Statamic\Fieldtypes\Replicator;
 
 class ColumnBuilder extends Replicator
@@ -9,9 +11,40 @@ class ColumnBuilder extends Replicator
     protected static $handle = 'column_builder';
     protected $selectable = true;
 
+    protected array $widthHandles = ['col_w_m', 'col_w_t', 'col_w_d', 'col_color'];
+
     public function component(): string
     {
         return 'column-builder';
+    }
+
+    public function augment($values)
+    {
+        return $this->mergeWidthFields($values, parent::augment($values));
+    }
+
+    public function shallowAugment($values)
+    {
+        return $this->mergeWidthFields($values, parent::shallowAugment($values));
+    }
+
+    // col_w_m/t/d and col_color are stored in each set's raw data but aren't
+    // declared blueprint fields, so Replicator strips them during augmentation.
+    // Re-inject them from the raw data so Antlers templates can use them.
+    private function mergeWidthFields(array $raw, array $augmented): array
+    {
+        $raws = collect($raw)
+            ->filter(fn ($set) => Arr::get($set, 'enabled', true) !== false)
+            ->values();
+
+        return collect($augmented)->map(function ($item, $idx) use ($raws) {
+            $extra = array_intersect_key($raws->get($idx, []), array_flip($this->widthHandles));
+            if (! $extra) {
+                return $item;
+            }
+            $data = $item instanceof Values ? $item->toArray() : (array) $item;
+            return new Values(array_merge($extra, $data));
+        })->all();
     }
 
     public function preload(): array

@@ -438,7 +438,7 @@
                                             {{ field.display || field.handle }}
                                         </label>
                                         <component
-                                            :is="(field.type || field.config?.type || 'text') + '-fieldtype'"
+                                            :is="(field.type || field.config?.type || 'text').replace(/_/g, '-') + '-fieldtype'"
                                             :value="resolveFieldValue(field)"
                                             :meta="resolveFieldMeta(field)"
                                             :config="resolveFieldConfig(field)"
