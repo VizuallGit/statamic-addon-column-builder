@@ -13,6 +13,29 @@ class ColumnBuilder extends Replicator
 
     protected array $widthHandles = ['col_w_m', 'col_w_t', 'col_w_d', 'col_color'];
 
+    protected function configFieldItems(): array
+    {
+        return array_merge(parent::configFieldItems(), [
+            [
+                'display' => 'Popup',
+                'fields' => [
+                    'popup_width' => [
+                        'display' => 'Popup bredde',
+                        'instructions' => 'Max bredde på popup vinduet der åbnes ved redigering af kolonne-indhold.',
+                        'type' => 'select',
+                        'options' => [
+                            'sm' => 'Smal (420px)',
+                            'md' => 'Normal (560px)',
+                            'lg' => 'Bred (760px)',
+                        ],
+                        'default' => 'lg',
+                        'width' => 50,
+                    ],
+                ],
+            ],
+        ]);
+    }
+
     public function component(): string
     {
         return 'column-builder';

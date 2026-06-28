@@ -33,8 +33,14 @@
                 },
             },
 
+            computed: {
+                popupMaxWidth() {
+                    return { sm: 420, md: 560, lg: 760 }[this.config.popup_width] || 760;
+                },
+            },
+
             template: `
-                <vizuall-popup :title="config.display" :max-width="680">
+                <vizuall-popup :title="config.display" :max-width="popupMaxWidth">
                     <template #trigger="{ toggle }">
                         <button type="button"
                             class="cb-edit-btn flex items-center justify-center w-8 h-8 rounded-lg border-0 cursor-pointer transition-colors"
@@ -346,6 +352,8 @@
                     });
                 };
 
+                const popupWidth = computed(() => props.config.popup_width);
+
                 return {
                     uid,
                     breakpoints, W_PCTS, currentBp, items,
@@ -355,7 +363,7 @@
                     typeDisplayLabel, getItemPreview,
                     getItemContentValue, getItemMeta, getSetFields,
                     onEditorValueUpdate, onEditorMetaUpdate,
-                    removeItem,
+                    removeItem, popupWidth,
                 };
             },
             template: `
@@ -443,7 +451,7 @@
                                             v-if="item.type"
                                             :value="getItemContentValue(item)"
                                             :meta="getItemMeta(item)"
-                                            :config="{ display: typeDisplayLabel(item.type), fields: getSetFields(item.type) }"
+                                            :config="{ display: typeDisplayLabel(item.type), fields: getSetFields(item.type), popup_width: popupWidth }"
                                             :handle="item._id"
                                             @update:value="onEditorValueUpdate(item._id, $event)"
                                             @update:meta="onEditorMetaUpdate(item._id, $event)"
