@@ -2,48 +2,47 @@
     'use strict';
 
     Statamic.booting(() => {
-        const { ref, computed, onUnmounted } = window.Vue;
+        const { ref, computed, provide, onUnmounted } = window.Vue;
+        const Fields         = window.__STATAMIC__?.ui?.PublishFields;
+        const FieldsProvider = window.__STATAMIC__?.ui?.PublishFieldsProvider;
 
         const BP_FIELD   = { mobile: 'col_w_m', tablet: 'col_w_t', desktop: 'col_w_d' };
         const BP_PREFIX  = { mobile: '', tablet: 'md:', desktop: 'lg:' };
         const BP_DEFAULT = { mobile: 12, tablet: 6, desktop: 4 };
 
         // ── ColumnItemEditor ─────────────────────────────────────────────────
-        // Renders the editing popup for a single column item.
-        // Uses vizuall-popup (from statamic-addon/popup) for all popup mechanics.
-        // Fields are rendered directly with <component :is> — no FieldsProvider needed.
+        // Works exactly like popup-group: uses the OUTER form's PublishContainerContext
+        // with a fieldPathPrefix that points to this item's data in the outer array.
+        // No custom context needed — Statamic handles value/meta reads and writes.
         const ColumnItemEditor = {
+            components: { Fields, FieldsProvider },
+
             props: {
-                value:  { type: Object, default: () => ({}) },
-                meta:   { type: Object, default: () => ({}) },
-                config: { type: Object, default: () => ({}) },
-                handle: { type: String, default: '' },
-            },
-            emits: ['update:value', 'update:meta'],
-
-            methods: {
-                updateField(fieldHandle, val) {
-                    this.$emit('update:value', { ...this.value, [fieldHandle]: val });
-                },
-                updateFieldMeta(fieldHandle, metaVal) {
-                    this.$emit('update:meta', { ...this.meta, [fieldHandle]: metaVal });
-                },
-                fieldComponent(type) {
-                    return (type || 'text').replace(/_/g, '-') + '-fieldtype';
-                },
-                // Statamic's publish pipeline auto-injects toolbar_mode:'fixed' for bard
-                // when rendered through FieldsProvider. Direct <component :is> rendering
-                // skips that pipeline, so we inject it here manually.
-                fieldConfig(field) {
-                    if ((field.type || '') !== 'bard') return field.config || {};
-                    return { ...(field.config || {}), toolbar_mode: 'fixed' };
-                },
+                fields:          { type: Array,  default: () => [] },
+                fieldPathPrefix: { type: String, default: '' },
+                metaPathPrefix:  { type: String, default: '' },
+                config:          { type: Object, default: () => ({}) },
+                handle:          { type: String, default: '' },
             },
 
-            computed: {
-                popupMaxWidth() {
-                    return { sm: 420, md: 560, lg: 760 }[this.config.popup_width] || 760;
-                },
+            setup(props) {
+                // group context — same pattern as popup-group
+                const group = {};
+                Object.defineProperties(group, {
+                    config:          { get: () => props.config },
+                    isReadOnly:      { get: () => false },
+                    handle:          { get: () => props.handle },
+                    fieldPathPrefix: { get: () => props.fieldPathPrefix },
+                    fullScreenMode:  { get: () => false },
+                    toggleFullScreen:{ get: () => () => {} },
+                });
+                provide('group', group);
+
+                const popupMaxWidth = computed(() =>
+                    ({ sm: 420, md: 560, lg: 760 }[props.config.popup_width] || 760)
+                );
+
+                return { popupMaxWidth };
             },
 
             template: `
@@ -61,35 +60,29 @@
                         </button>
                     </template>
 
-                    <div v-for="field in (config.fields || [])" :key="field.handle" class="cb-popup-field">
-                        <label class="cb-popup-field-label">{{ field.display || field.handle }}</label>
-                        <component
-                            :is="fieldComponent(field.type)"
-                            :value="value[field.handle] ?? null"
-                            :meta="meta[field.handle] ?? null"
-                            :config="fieldConfig(field)"
-                            :handle="field.handle"
-                            @update:value="updateField(field.handle, $event)"
-                            @update:meta="updateFieldMeta(field.handle, $event)"
-                        />
-                    </div>
+                    <FieldsProvider
+                        :fields="fields"
+                        :as-config="false"
+                        :read-only="false"
+                        :field-path-prefix="fieldPathPrefix"
+                        :meta-path-prefix="metaPathPrefix"
+                    >
+                        <Fields />
+                    </FieldsProvider>
                 </vizuall-popup>
             `,
         };
 
         Statamic.$components.register('column-item-editor', ColumnItemEditor);
 
-        // ── Shared static styles ─────────────────────────────────────────────
+        // ── Bard min-height in popup ─────────────────────────────────────────
         if (!document.getElementById('cb-item-popup-styles')) {
             const s = document.createElement('style');
             s.id = 'cb-item-popup-styles';
             s.textContent = `
-                .cb-popup-field{margin-bottom:16px;}
-                .cb-popup-field:last-child{margin-bottom:0;}
-                .cb-popup-field-label{display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:rgba(0,0,0,.45);margin-bottom:6px;}
-                html.dark .cb-popup-field-label{color:rgba(255,255,255,.4);}
-                .vizuall-popup .bard-editor .bard-content{min-height:160px!important;}
-                .vizuall-popup .bard-editor .ProseMirror{min-height:160px!important;}
+                .vizuall-popup .bard-editor { min-height: 180px !important; }
+                .vizuall-popup .bard-editor .bard-content { min-height: 160px !important; }
+                .vizuall-popup .bard-editor .ProseMirror { min-height: 160px !important; }
             `;
             document.head.appendChild(s);
         }
@@ -97,9 +90,12 @@
         // ── ColumnBuilderFieldtype ───────────────────────────────────────────
         Statamic.$components.register('column-builder-fieldtype', {
             props: {
-                value:  { required: true },
-                meta:   { type: Object, default: () => ({}) },
-                config: { type: Object, default: () => ({}) },
+                value:           { required: true },
+                meta:            { type: Object, default: () => ({}) },
+                config:          { type: Object, default: () => ({}) },
+                handle:          { type: String, default: '' },
+                fieldPathPrefix: { type: String, default: '' },
+                metaPathPrefix:  { type: String, default: '' },
             },
             emits: ['update:value', 'update:meta'],
             setup(props, { emit }) {
@@ -312,27 +308,40 @@
                 // ── Remove item ───────────────────────────────────────────────
                 const removeItem = (itemId) => {
                     emit('update:value', props.value.filter(item => item._id !== itemId));
-                    const { [itemId]: _removed, ...restMeta } = (props.meta?.existing || {});
-                    emit('update:meta', { ...props.meta, existing: restMeta });
+                    const { [itemId]: _removed, ...restExisting } = (props.meta?.existing || {});
+                    emit('update:meta', { ...props.meta, existing: restExisting });
                 };
 
-                // ── Editor helpers (value/meta flow to ColumnItemEditor) ───────
-                // Strip column-metadata keys so FieldsProvider only sees content fields
-                const STRIP_KEYS = new Set(['_id', 'type', 'enabled', 'col_w_m', 'col_w_t', 'col_w_d']);
+                // ── Field path helpers (popup-group approach) ─────────────────
+                // Values are in the outer form at: handle.itemIndex.fieldHandle
+                // Meta is in the outer form at:   handle.existing.itemId.fieldHandle
+                const getItemIndex = (item) =>
+                    items.value.findIndex(i => i._id === item._id);
 
-                const getItemContentValue = (item) => {
-                    const content = {};
-                    for (const [k, v] of Object.entries(item)) {
-                        if (!STRIP_KEYS.has(k)) content[k] = v;
-                    }
-                    return content;
+                const getItemFieldPathPrefix = (item) => {
+                    const parts = [props.fieldPathPrefix, props.handle, getItemIndex(item)];
+                    return parts.filter(p => p !== '' && p !== null && p !== undefined).join('.');
                 };
 
-                const getItemMeta = (item) =>
-                    ({ ...(props.meta?.existing?.[item._id] || props.meta?.new?.[item.type] || {}) });
+                const getItemMetaPathPrefix = (item) => {
+                    const parts = [props.metaPathPrefix, props.handle, 'existing', item._id];
+                    return parts.filter(p => p !== '' && p !== null && p !== undefined).join('.');
+                };
 
-                const getSetFields = (type) =>
-                    props.meta?.sets_config?.[type]?.fields || [];
+                // Fields for FieldsProvider: flat format with all config keys at root.
+                // Filters out internal width fields (col_w_*) — these are grid-only.
+                const getSetFields = (type) => {
+                    const fields = props.meta?.sets_config?.[type]?.fields || [];
+                    return fields.map(f => ({
+                        ...f.config,
+                        handle:  f.handle,
+                        display: f.display || f.handle,
+                        type:    f.type,
+                        // Bard needs fixed toolbar in popup — publish pipeline sets this automatically
+                        // in standard forms, but our raw preloaded config bypasses that step.
+                        ...(f.type === 'bard' ? { toolbar_mode: 'fixed' } : {}),
+                    }));
+                };
 
                 const typeDisplayLabel = (type) => {
                     const sc = props.meta?.sets_config;
@@ -344,21 +353,6 @@
                     return type;
                 };
 
-                // Merge updated content fields back, preserving column metadata
-                const onEditorValueUpdate = (itemId, newContent) => {
-                    emit('update:value', props.value.map(item => {
-                        if (item._id !== itemId) return item;
-                        return { ...item, ...newContent };
-                    }));
-                };
-
-                const onEditorMetaUpdate = (itemId, newMeta) => {
-                    emit('update:meta', {
-                        ...props.meta,
-                        existing: { ...(props.meta?.existing || {}), [itemId]: newMeta },
-                    });
-                };
-
                 const popupWidth = computed(() => props.config.popup_width);
 
                 return {
@@ -368,8 +362,8 @@
                     getWidth, getWidthPct, setWidthFromPct,
                     hoverState, setHoverPct, clearHoverPct, displayPct,
                     typeDisplayLabel, getItemPreview,
-                    getItemContentValue, getItemMeta, getSetFields,
-                    onEditorValueUpdate, onEditorMetaUpdate,
+                    getSetFields,
+                    getItemFieldPathPrefix, getItemMetaPathPrefix,
                     removeItem, popupWidth,
                 };
             },
@@ -456,12 +450,11 @@
                                         <!-- Editor popup (pencil button + teleport popup) -->
                                         <column-item-editor
                                             v-if="item.type"
-                                            :value="getItemContentValue(item)"
-                                            :meta="getItemMeta(item)"
-                                            :config="{ display: typeDisplayLabel(item.type), fields: getSetFields(item.type), popup_width: popupWidth }"
+                                            :fields="getSetFields(item.type)"
+                                            :field-path-prefix="getItemFieldPathPrefix(item)"
+                                            :meta-path-prefix="getItemMetaPathPrefix(item)"
+                                            :config="{ display: typeDisplayLabel(item.type), popup_width: popupWidth }"
                                             :handle="item._id"
-                                            @update:value="onEditorValueUpdate(item._id, $event)"
-                                            @update:meta="onEditorMetaUpdate(item._id, $event)"
                                         />
                                     </div>
                                 </div>

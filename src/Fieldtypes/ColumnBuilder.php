@@ -136,7 +136,10 @@ class ColumnBuilder extends Replicator
                             'handle'  => $field->handle(),
                             'display' => $field->display(),
                             'type'    => $field->type(),
-                            'config'  => array_merge(['type' => $field->type()], $field->config()),
+                            'config'  => array_merge(
+                                ['type' => $field->type(), 'component' => $field->fieldtype()->component()],
+                                $field->config()
+                            ),
                         ])
                         ->values()
                         ->all(),
