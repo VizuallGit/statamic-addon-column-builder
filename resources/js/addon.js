@@ -2,12 +2,175 @@
     'use strict';
 
     Statamic.booting(() => {
-        const { ref, computed, watch, nextTick, onUnmounted, provide, inject } = window.Vue;
+        const { ref, computed, onUnmounted } = window.Vue;
+        const Fields         = window.__STATAMIC__?.ui?.PublishFields;
+        const FieldsProvider = window.__STATAMIC__?.ui?.PublishFieldsProvider;
+        const Fieldtype      = window.__STATAMIC__?.core?.Fieldtype ?? {};
 
         const BP_FIELD   = { mobile: 'col_w_m', tablet: 'col_w_t', desktop: 'col_w_d' };
         const BP_PREFIX  = { mobile: '', tablet: 'md:', desktop: 'lg:' };
         const BP_DEFAULT = { mobile: 12, tablet: 6, desktop: 4 };
 
+        // ── ColumnItemEditor ─────────────────────────────────────────────────
+        // Options API + Fieldtype mixin — same approach as popup-group.
+        // Renders the editing popup for a single column item using
+        // Fields/FieldsProvider so all fieldtypes (select, assets, etc.) work.
+        const ColumnItemEditor = {
+            components: { Fields, FieldsProvider },
+            mixins: [Fieldtype],
+
+            provide() {
+                const group = {};
+                Object.defineProperties(group, {
+                    config:          { get: () => this.config },
+                    isReadOnly:      { get: () => false },
+                    handle:          { get: () => this.handle },
+                    fieldPathPrefix: { get: () => this.fieldPathPrefix || this.handle },
+                    fullScreenMode:  { get: () => false },
+                    toggleFullScreen:{ get: () => () => {} },
+                });
+                return { group };
+            },
+
+            data() {
+                return { isOpen: false, popupStyle: {} };
+            },
+
+            computed: {
+                nestedFieldPathPrefix() {
+                    return this.fieldPathPrefix
+                        ? `${this.fieldPathPrefix}.${this.handle}`
+                        : this.handle;
+                },
+                nestedMetaPathPrefix() {
+                    return this.metaPathPrefix
+                        ? `${this.metaPathPrefix}.${this.handle}`
+                        : this.handle;
+                },
+            },
+
+            methods: {
+                openPopup() {
+                    this.isOpen = true;
+                    document.body.classList.add('popup-group-open');
+                    this.$nextTick(() => {
+                        this.computePosition();
+                        setTimeout(() => { this.computePosition(); this.bindEvents(); }, 100);
+                    });
+                },
+
+                closePopup() {
+                    this.isOpen = false;
+                    document.body.classList.remove('popup-group-open');
+                    this.unbindEvents();
+                },
+
+                computePosition() {
+                    const trigger = this.$refs.trigger;
+                    const popup   = this.$refs.popup;
+                    if (!trigger || !popup) return;
+
+                    const rect   = trigger.getBoundingClientRect();
+                    const popupH = popup.offsetHeight;
+                    const popupW = popup.offsetWidth;
+
+                    let top = rect.bottom + 6;
+                    if (top + popupH > window.innerHeight - 12) top = Math.max(8, rect.top - popupH - 6);
+
+                    let left = rect.left;
+                    if (left + popupW > window.innerWidth - 12) left = Math.max(8, window.innerWidth - popupW - 12);
+
+                    this.popupStyle = { position: 'fixed', zIndex: 3, top: `${top}px`, left: `${left}px` };
+                },
+
+                bindEvents() {
+                    this._onOutsideClick = (e) => {
+                        if (this.$refs.popup?.contains(e.target)) return;
+                        if (this.$refs.trigger?.contains(e.target)) return;
+                        if (document.querySelector('[data-reka-popper-content-wrapper]')) return;
+                        this.closePopup();
+                    };
+                    this._onEscape = (e) => { if (e.key === 'Escape') this.closePopup(); };
+                    this._onScroll = (e) => {
+                        const trigger = this.$refs.trigger;
+                        if (trigger && e.target?.contains?.(trigger)) this.closePopup();
+                    };
+                    document.addEventListener('mousedown', this._onOutsideClick);
+                    document.addEventListener('keydown',   this._onEscape);
+                    window.addEventListener('scroll',      this._onScroll, true);
+                },
+
+                unbindEvents() {
+                    if (this._onOutsideClick) document.removeEventListener('mousedown', this._onOutsideClick);
+                    if (this._onEscape)       document.removeEventListener('keydown',   this._onEscape);
+                    if (this._onScroll)       window.removeEventListener('scroll',      this._onScroll, true);
+                },
+            },
+
+            beforeUnmount() {
+                document.body.classList.remove('popup-group-open');
+                this.unbindEvents();
+            },
+
+            template: `
+                <div>
+                    <button ref="trigger" type="button"
+                        class="cb-edit-btn flex items-center justify-center w-8 h-8 rounded-lg border-0 cursor-pointer transition-colors"
+                        title="Edit"
+                        @click.stop="isOpen ? closePopup() : openPopup()"
+                    >
+                        <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
+                            <path d="M11.5 1.5a1.5 1.5 0 0 1 2.12 2.12L5 12.24l-2.5.5.5-2.5L11.5 1.5z"
+                                  stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </button>
+
+                    <teleport to="body">
+                        <div v-if="isOpen" ref="popup" class="cb-item-popup" :style="popupStyle">
+                            <div class="popup-group-header">
+                                <span class="popup-group-title">{{ config.display }}</span>
+                                <button type="button" class="popup-group-close" @click="closePopup">✕</button>
+                            </div>
+                            <div class="popup-group-body">
+                                <FieldsProvider
+                                    :fields="config.fields || []"
+                                    :as-config="false"
+                                    :read-only="false"
+                                    :field-path-prefix="nestedFieldPathPrefix"
+                                    :meta-path-prefix="nestedMetaPathPrefix"
+                                >
+                                    <Fields />
+                                </FieldsProvider>
+                            </div>
+                            <div class="cb-item-popup-footer">
+                                <button type="button" class="cb-item-popup-done" @click="closePopup">Done</button>
+                            </div>
+                        </div>
+                    </teleport>
+                </div>
+            `,
+        };
+
+        Statamic.$components.register('column-item-editor', ColumnItemEditor);
+
+        // ── Shared static styles ─────────────────────────────────────────────
+        if (!document.getElementById('cb-item-popup-styles')) {
+            const s = document.createElement('style');
+            s.id = 'cb-item-popup-styles';
+            s.textContent = `
+                .cb-item-popup{background:#fff;border:1px solid #e5e7eb;border-radius:8px;box-shadow:0 8px 32px rgba(0,0,0,.15);min-width:300px;max-width:680px;overflow:hidden;}
+                html.dark .cb-item-popup{background:#2d2d2d;border-color:#3a3a3a;box-shadow:0 8px 32px rgba(0,0,0,.55);}
+                .cb-item-popup .bard-editor .bard-content{min-height:160px!important;}
+                .cb-item-popup .bard-editor .ProseMirror{min-height:160px!important;}
+                .cb-item-popup-footer{display:flex;justify-content:flex-end;padding:8px 14px 10px;border-top:1px solid rgba(0,0,0,.07);}
+                html.dark .cb-item-popup-footer{border-top-color:rgba(255,255,255,.07);}
+                .cb-item-popup-done{padding:6px 20px;background:var(--color-primary,#6366f1);border:none;border-radius:6px;color:#fff;font-size:13px;font-weight:500;cursor:pointer;}
+                .cb-item-popup-done:hover{background:var(--color-primary-hover,#4f46e5);}
+            `;
+            document.head.appendChild(s);
+        }
+
+        // ── ColumnBuilderFieldtype ───────────────────────────────────────────
         Statamic.$components.register('column-builder-fieldtype', {
             props: {
                 value:  { required: true },
@@ -16,41 +179,25 @@
             },
             emits: ['update:value', 'update:meta'],
             setup(props, { emit }) {
-                const uid        = Math.random().toString(36).slice(2, 8);
-                const portalName = 'cb-ed-' + uid;
-                const popupClass = 'cb-popup-' + uid;
+                const uid = Math.random().toString(36).slice(2, 8);
 
+                // Per-instance scoped card styles
                 const styleEl = document.createElement('style');
                 styleEl.textContent = `
-                    .${popupClass} .bard-editor .bard-content { min-height:160px !important; }
-                    .${popupClass} .bard-editor .ProseMirror { min-height:160px !important; }
-
-                    /* Column card */
                     [data-cbid="${uid}"] .cb-col { background:#18181c; border:1px solid #26262c; }
-                    [data-cbid="${uid}"] .cb-col--active { border-color:#3b5bdb; background:#1a1e2e; }
-                    [data-cbid="${uid}"] .cb-col:hover:not(.cb-col--active) { border-color:#32323c; }
-
-                    /* Delete button */
+                    [data-cbid="${uid}"] .cb-col:hover { border-color:#32323c; }
                     [data-cbid="${uid}"] .cb-col-delete { color:#3a3a42; }
                     [data-cbid="${uid}"] .cb-col-delete:hover { color:#f87171; }
-
-                    /* Empty + icon */
                     [data-cbid="${uid}"] .cb-col-plus { color:#2e2e36; }
                     [data-cbid="${uid}"] .cb-col-plus:hover { color:#52525e; }
-
-                    /* Width pill */
                     [data-cbid="${uid}"] .cb-width-pill { width:52px; height:22px; border-radius:6px; overflow:hidden; background:#111116; border:1px solid #26262c; }
                     [data-cbid="${uid}"] .cb-width-segments { display:flex; width:100%; height:100%; }
                     [data-cbid="${uid}"] .cb-seg { flex:1; border-left:1px solid #26262c; transition:background .1s; }
                     [data-cbid="${uid}"] .cb-seg:first-child { border-left:none; }
                     [data-cbid="${uid}"] .cb-seg--on { background:#3a3a46; }
                     [data-cbid="${uid}"] .cb-seg:hover { background:#4a4a58; }
-
-                    /* Edit button */
                     [data-cbid="${uid}"] .cb-edit-btn { background:#3b5bdb; color:#fff; }
                     [data-cbid="${uid}"] .cb-edit-btn:hover { background:#4c6ef5; }
-
-                    /* Add column button */
                     [data-cbid="${uid}"] .cb-add-btn { background:#18181c; color:#6b7280; border:1px dashed #2e2e36; }
                     [data-cbid="${uid}"] .cb-add-btn:hover { color:#d1d5db; border-color:#52525e; }
                 `;
@@ -66,8 +213,6 @@
                 const items       = computed(() => Array.isArray(props.value) ? props.value : []);
 
                 // ── Column type sets ──────────────────────────────────────────
-                // Loops through all groups and collects their sets, so every
-                // field group defined in the blueprint appears in the type picker.
                 const columnSets = computed(() => {
                     const sc = props.meta?.sets_config;
                     if (sc && Object.keys(sc).length > 0) {
@@ -85,7 +230,7 @@
                     return result;
                 });
 
-                // ── Add empty column ──────────────────────────────────────────
+                // ── Add column ────────────────────────────────────────────────
                 const addColumn = () => {
                     const newId   = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
                     const newItem = { _id: newId, type: null, enabled: true, col_w_m: 'col-span-12', col_w_t: 'md:col-span-6', col_w_d: 'lg:col-span-4' };
@@ -122,7 +267,6 @@
 
                 const openTypePicker = (itemId, triggerEl) => {
                     if (typePickerPortal.value) { closeTypePicker(); return; }
-
                     typePickerItemId.value = itemId;
                     typePickerTrigger      = triggerEl;
 
@@ -166,8 +310,6 @@
                         ...props.meta,
                         existing: { ...(props.meta?.existing || {}), [itemId]: setMeta },
                     });
-                    const updatedItem = updatedItems.find(i => i._id === itemId);
-                    if (updatedItem) nextTick(() => openEditor(updatedItem));
                 };
 
                 onUnmounted(() => closeTypePicker());
@@ -243,35 +385,30 @@
                     return null;
                 };
 
-                // ── Popup (field editor) ──────────────────────────────────────
-                const popupStyle = ref('');
-                const calcPopupStyle = () => {
-                    // In live preview mode, find the CP editing panel (scrollable ancestor
-                    // narrower than the full viewport) so the overlay doesn't cover the preview iframe
-                    const myEl = document.querySelector(`[data-cbid="${uid}"]`);
-                    let panelRect = null;
-
-                    if (myEl) {
-                        let el = myEl.parentElement;
-                        while (el && el !== document.documentElement) {
-                            const style = window.getComputedStyle(el);
-                            const rect  = el.getBoundingClientRect();
-                            const scrollable = style.overflowY === 'auto' || style.overflowY === 'scroll' ||
-                                               style.overflow  === 'auto' || style.overflow  === 'scroll';
-                            if (scrollable && rect.width < window.innerWidth * 0.95 && rect.width > 100) {
-                                panelRect = rect;
-                                break;
-                            }
-                            el = el.parentElement;
-                        }
-                    }
-
-                    if (panelRect) {
-                        popupStyle.value = `position:fixed;top:0;left:${panelRect.left}px;width:${panelRect.width}px;height:100vh;z-index:9000;display:flex;align-items:center;justify-content:center;padding:20px;`;
-                    } else {
-                        popupStyle.value = 'position:fixed;inset:0;z-index:9000;display:flex;align-items:center;justify-content:center;padding:20px;';
-                    }
+                // ── Remove item ───────────────────────────────────────────────
+                const removeItem = (itemId) => {
+                    emit('update:value', props.value.filter(item => item._id !== itemId));
+                    const { [itemId]: _removed, ...restMeta } = (props.meta?.existing || {});
+                    emit('update:meta', { ...props.meta, existing: restMeta });
                 };
+
+                // ── Editor helpers (value/meta flow to ColumnItemEditor) ───────
+                // Strip column-metadata keys so FieldsProvider only sees content fields
+                const STRIP_KEYS = new Set(['_id', 'type', 'enabled', 'col_w_m', 'col_w_t', 'col_w_d']);
+
+                const getItemContentValue = (item) => {
+                    const content = {};
+                    for (const [k, v] of Object.entries(item)) {
+                        if (!STRIP_KEYS.has(k)) content[k] = v;
+                    }
+                    return content;
+                };
+
+                const getItemMeta = (item) =>
+                    ({ ...(props.meta?.existing?.[item._id] || props.meta?.new?.[item.type] || {}) });
+
+                const getSetFields = (type) =>
+                    props.meta?.sets_config?.[type]?.fields || [];
 
                 const typeDisplayLabel = (type) => {
                     const sc = props.meta?.sets_config;
@@ -283,189 +420,37 @@
                     return type;
                 };
 
-                const editingId     = ref(null);
-                const editingValues = ref({});
-                const editingMeta   = ref({});
-
-                // Forward the parent publish context to fields in our popup so
-                // bard can inject it for toolbar initialization.
-                const parentPublishContext = inject('PublishContainerContext', null);
-                if (parentPublishContext) {
-                    provide('PublishContainerContext', parentPublishContext);
-                }
-
-                const editingItem = computed(() =>
-                    editingId.value ? items.value.find(i => i._id === editingId.value) : null
-                );
-
-                const editingSetLabel = computed(() =>
-                    editingItem.value ? typeDisplayLabel(editingItem.value.type) : ''
-                );
-
-                const editingSetFields = computed(() => {
-                    const type = editingItem.value?.type;
-                    if (!type) return [];
-                    return props.meta?.sets_config?.[type]?.fields || [];
-                });
-
-                watch(editingItem, (item) => {
-                    if (!item && editingId.value) closeEditor();
-                });
-
-                // Track known IDs — no auto-open; setColumnType handles opening
-                // the editor after a type is selected on a fresh empty column.
-                const knownIds = new Set(items.value.map(i => i._id));
-                watch(items, (newItems) => {
-                    newItems.forEach(item => { knownIds.add(item._id); });
-                });
-
-                const openEditor = (item) => {
-                    if (!item.type) return;
-                    calcPopupStyle();
-                    editingId.value     = item._id;
-                    editingValues.value = { ...item };
-                    editingMeta.value   = {
-                        ...(props.meta?.existing?.[item._id] || props.meta?.new?.[item.type] || {}),
-                    };
+                // Merge updated content fields back, preserving column metadata
+                const onEditorValueUpdate = (itemId, newContent) => {
+                    emit('update:value', props.value.map(item => {
+                        if (item._id !== itemId) return item;
+                        return { ...item, ...newContent };
+                    }));
                 };
 
-                const closeEditor = () => {
-                    editingId.value     = null;
-                    editingValues.value = {};
-                    editingMeta.value   = {};
-                };
-
-                const updateFieldValue = (handle, val) => {
-                    const next = { ...editingValues.value, [handle]: val };
-                    editingValues.value = next;
-                    emit('update:value', props.value.map(item =>
-                        item._id === editingId.value ? { ...next } : item
-                    ));
-                };
-
-                const updateFieldMeta = (handle, metaVal) => {
-                    const nextMeta = { ...editingMeta.value, [handle]: metaVal };
-                    editingMeta.value = nextMeta;
+                const onEditorMetaUpdate = (itemId, newMeta) => {
                     emit('update:meta', {
                         ...props.meta,
-                        existing: { ...(props.meta?.existing || {}), [editingId.value]: nextMeta },
+                        existing: { ...(props.meta?.existing || {}), [itemId]: newMeta },
                     });
                 };
 
-                const removeItem = (itemId) => {
-                    if (editingId.value === itemId) closeEditor();
-                    emit('update:value', props.value.filter(item => item._id !== itemId));
-                    const { [itemId]: _removed, ...restMeta } = (props.meta?.existing || {});
-                    emit('update:meta', { ...props.meta, existing: restMeta });
-                };
-
-                const BARD_META_FALLBACK = {
-                    existing: [], new: null, defaults: null, collapsed: [],
-                    previews: [], linkCollections: [], linkData: {},
-                    '__collaboration': ['existing'],
-                };
-
-                const isBard = (field) => field.type === 'bard' || field.config?.type === 'bard';
-
-                const resolveFieldMeta = (field) => {
-                    const meta = editingMeta.value[field.handle];
-                    if (isBard(field)) {
-                        if (meta == null || !Object.prototype.hasOwnProperty.call(meta, 'collapsed')) {
-                            return BARD_META_FALLBACK;
-                        }
-                    }
-                    return meta !== undefined ? meta : null;
-                };
-
-                const resolveFieldValue = (field) => {
-                    const val = editingValues.value[field.handle];
-                    if (isBard(field) && (val === undefined || val === null)) {
-                        return [];
-                    }
-                    return val !== undefined ? val : null;
-                };
-
-                const resolveFieldConfig = (field) => {
-                    if (isBard(field)) {
-                        // toolbar_mode default is 'fixed' in Statamic but is not applied to raw field.config()
-                        // without it toolbarIsFixed = false → showFixedToolbar = false → toolbar never renders
-                        return { toolbar_mode: 'fixed', sets: [], ...field.config };
-                    }
-                    return field.config;
-                };
-
                 return {
-                    uid, portalName, popupClass, popupStyle,
+                    uid,
                     breakpoints, W_PCTS, currentBp, items,
                     addColumn, openTypePicker,
                     getWidth, getWidthPct, setWidthFromPct,
                     hoverState, setHoverPct, clearHoverPct, displayPct,
                     typeDisplayLabel, getItemPreview,
-                    editingId, editingValues, editingMeta,
-                    editingItem, editingSetLabel, editingSetFields,
-                    openEditor, closeEditor, updateFieldValue, updateFieldMeta,
-                    removeItem, resolveFieldMeta, resolveFieldValue, resolveFieldConfig,
+                    getItemContentValue, getItemMeta, getSetFields,
+                    onEditorValueUpdate, onEditorMetaUpdate,
+                    removeItem,
                 };
             },
             template: `
                 <div :data-cbid="uid">
 
-                    <!-- ════════════════════════════════
-                         POPUP (field editor)
-                         ════════════════════════════════ -->
-                    <portal :name="portalName">
-                        <div
-                            v-if="editingId"
-                            :class="popupClass"
-                            :style="popupStyle + 'background:rgba(0,0,0,0.6);'"
-                            @click.self="closeEditor"
-                        >
-                            <div
-                                class="w-full max-w-2xl rounded-xl shadow-2xl border border-gray-700 bg-gray-800"
-                                style="max-height:calc(100vh - 40px);display:flex;flex-direction:column;"
-                            >
-                                <!-- Header (fixed) -->
-                                <div class="flex items-center justify-between px-5 py-4 border-b border-gray-700 flex-shrink-0">
-                                    <span class="text-sm font-semibold text-gray-100">{{ editingSetLabel }}</span>
-                                    <button type="button" @click="closeEditor"
-                                        class="text-gray-500 hover:text-gray-300 transition-colors text-2xl leading-none px-1 bg-transparent border-0 cursor-pointer">×</button>
-                                </div>
-
-                                <!-- Fields (scrollable) -->
-                                <div class="p-6 space-y-6 overflow-y-auto flex-1">
-                                    <div v-if="!editingSetFields.length"
-                                         class="text-center text-sm text-gray-500 py-4">No fields</div>
-
-                                    <div v-for="field in editingSetFields" :key="field.handle">
-                                        <label class="block text-xs font-semibold uppercase tracking-widest text-gray-500 mb-2">
-                                            {{ field.display || field.handle }}
-                                        </label>
-                                        <component
-                                            :is="(field.type || field.config?.type || 'text').replace(/_/g, '-') + '-fieldtype'"
-                                            :value="resolveFieldValue(field)"
-                                            :meta="resolveFieldMeta(field)"
-                                            :config="resolveFieldConfig(field)"
-                                            :handle="field.handle"
-                                            @update:value="updateFieldValue(field.handle, $event)"
-                                            @update:meta="updateFieldMeta(field.handle, $event)"
-                                        />
-                                    </div>
-                                </div>
-
-                                <!-- Footer (fixed) -->
-                                <div class="flex justify-end px-5 py-3 border-t border-gray-700 flex-shrink-0">
-                                    <button type="button" @click="closeEditor"
-                                        class="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium rounded-lg border-0 cursor-pointer transition-colors">
-                                        Done
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </portal>
-
-                    <!-- ════════════════════════════════
-                         GRID
-                         ════════════════════════════════ -->
+                    <!-- GRID -->
                     <div class="rounded-xl overflow-hidden mb-2" style="background:#0d0d10;border:1px solid #1e1e24;">
 
                         <!-- Breakpoint selector -->
@@ -481,18 +466,14 @@
 
                         <!-- Grid canvas -->
                         <div class="p-3 min-h-35">
-
                             <div v-if="items.length > 0" class="grid grid-cols-12 gap-2">
                                 <div
                                     v-for="item in items"
                                     :key="item._id"
                                     :style="{ gridColumn: 'span ' + getWidth(item, currentBp) }"
-                                    :class="[
-                                        'cb-col relative flex flex-col rounded-xl transition-all min-h-36',
-                                        editingId === item._id ? 'cb-col--active' : ''
-                                    ]"
+                                    class="cb-col relative flex flex-col rounded-xl transition-all min-h-36"
                                 >
-                                    <!-- × Delete -->
+                                    <!-- Delete -->
                                     <button
                                         type="button"
                                         @click.stop="removeItem(item._id)"
@@ -500,7 +481,7 @@
                                         title="Delete column"
                                     >×</button>
 
-                                    <!-- Empty column: click + to pick type -->
+                                    <!-- Empty: pick type -->
                                     <div
                                         v-if="!item.type"
                                         @click.stop="openTypePicker(item._id, $event.currentTarget)"
@@ -512,12 +493,8 @@
                                         </svg>
                                     </div>
 
-                                    <!-- Filled column: click to edit -->
-                                    <div
-                                        v-else
-                                        @click.stop="openEditor(item)"
-                                        class="flex-1 px-4 pt-4 pb-3 cursor-pointer flex flex-col gap-1.5"
-                                    >
+                                    <!-- Filled: preview -->
+                                    <div v-else class="flex-1 px-4 pt-4 pb-3 flex flex-col gap-1.5">
                                         <span class="text-sm font-semibold truncate pr-5 leading-tight" style="color:#e5e7eb;">
                                             {{ typeDisplayLabel(item.type) }}
                                         </span>
@@ -528,10 +505,10 @@
                                         >{{ getItemPreview(item).text }}</span>
                                     </div>
 
-                                    <!-- Bottom: width pill + edit button -->
+                                    <!-- Bottom: width pill + editor -->
                                     <div class="flex items-center justify-between px-3 pb-3 pt-1" @click.stop>
 
-                                        <!-- Width pill (click cycles through presets) -->
+                                        <!-- Width pill -->
                                         <div
                                             class="cb-width-pill relative cursor-pointer font-mono text-[10px]"
                                             @mouseleave.stop="clearHoverPct()"
@@ -550,19 +527,16 @@
                                             </div>
                                         </div>
 
-                                        <!-- Edit button (only when type is set) -->
-                                        <button
+                                        <!-- Editor popup (pencil button + teleport popup) -->
+                                        <column-item-editor
                                             v-if="item.type"
-                                            type="button"
-                                            @click.stop="openEditor(item)"
-                                            class="cb-edit-btn flex items-center justify-center w-8 h-8 rounded-lg border-0 cursor-pointer transition-colors"
-                                            title="Edit"
-                                        >
-                                            <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
-                                                <path d="M11.5 1.5a1.5 1.5 0 0 1 2.12 2.12L5 12.24l-2.5.5.5-2.5L11.5 1.5z"
-                                                      stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                                            </svg>
-                                        </button>
+                                            :value="getItemContentValue(item)"
+                                            :meta="getItemMeta(item)"
+                                            :config="{ display: typeDisplayLabel(item.type), fields: getSetFields(item.type) }"
+                                            :handle="item._id"
+                                            @update:value="onEditorValueUpdate(item._id, $event)"
+                                            @update:meta="onEditorMetaUpdate(item._id, $event)"
+                                        />
                                     </div>
                                 </div>
                             </div>
@@ -574,7 +548,7 @@
                         </div>
                     </div>
 
-                    <!-- ADD COLUMN BUTTON -->
+                    <!-- ADD COLUMN -->
                     <button
                         type="button"
                         @click="addColumn"
