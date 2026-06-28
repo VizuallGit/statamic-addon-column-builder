@@ -20,6 +20,7 @@
             mixins: [Fieldtype],
 
             provide() {
+                const { computed } = window.Vue;
                 const group = {};
                 Object.defineProperties(group, {
                     config:          { get: () => this.config },
@@ -29,7 +30,19 @@
                     fullScreenMode:  { get: () => false },
                     toggleFullScreen:{ get: () => () => {} },
                 });
-                return { group };
+
+                // Override the outer form's PublishContainerContext with a local one.
+                // FieldsProvider looks up field values as:
+                //   context.values.value[nestedFieldPathPrefix][fieldHandle]
+                // For popup-group that works because nestedFieldPathPrefix matches a
+                // top-level key in the form context. For column-item-editor the key is
+                // item._id which doesn't exist in the form context — so we provide a
+                // local context where values.value[this.handle] = this.value (the item content).
+                const PublishContainerContext = {
+                    values: computed(() => ({ [this.handle]: this.value })),
+                };
+
+                return { group, PublishContainerContext };
             },
 
             data() {
