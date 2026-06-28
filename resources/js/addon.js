@@ -3,164 +3,64 @@
 
     Statamic.booting(() => {
         const { ref, computed, onUnmounted } = window.Vue;
-        const Fields         = window.__STATAMIC__?.ui?.PublishFields;
-        const FieldsProvider = window.__STATAMIC__?.ui?.PublishFieldsProvider;
-        const Fieldtype      = window.__STATAMIC__?.core?.Fieldtype ?? {};
 
         const BP_FIELD   = { mobile: 'col_w_m', tablet: 'col_w_t', desktop: 'col_w_d' };
         const BP_PREFIX  = { mobile: '', tablet: 'md:', desktop: 'lg:' };
         const BP_DEFAULT = { mobile: 12, tablet: 6, desktop: 4 };
 
         // ── ColumnItemEditor ─────────────────────────────────────────────────
-        // Options API + Fieldtype mixin — same approach as popup-group.
-        // Renders the editing popup for a single column item using
-        // Fields/FieldsProvider so all fieldtypes (select, assets, etc.) work.
+        // Renders the editing popup for a single column item.
+        // Uses vizuall-popup (from statamic-addon/popup) for all popup mechanics.
+        // Fields are rendered directly with <component :is> — no FieldsProvider needed.
         const ColumnItemEditor = {
-            components: { Fields, FieldsProvider },
-            mixins: [Fieldtype],
-
-            provide() {
-                const { computed } = window.Vue;
-                const group = {};
-                Object.defineProperties(group, {
-                    config:          { get: () => this.config },
-                    isReadOnly:      { get: () => false },
-                    handle:          { get: () => this.handle },
-                    fieldPathPrefix: { get: () => this.fieldPathPrefix || this.handle },
-                    fullScreenMode:  { get: () => false },
-                    toggleFullScreen:{ get: () => () => {} },
-                });
-
-                // Override the outer form's PublishContainerContext with a local one.
-                // FieldsProvider looks up field values as:
-                //   context.values.value[nestedFieldPathPrefix][fieldHandle]
-                // For popup-group that works because nestedFieldPathPrefix matches a
-                // top-level key in the form context. For column-item-editor the key is
-                // item._id which doesn't exist in the form context — so we provide a
-                // local context where values.value[this.handle] = this.value (the item content).
-                const PublishContainerContext = {
-                    values: computed(() => ({ [this.handle]: this.value })),
-                };
-
-                return { group, PublishContainerContext };
+            props: {
+                value:  { type: Object, default: () => ({}) },
+                meta:   { type: Object, default: () => ({}) },
+                config: { type: Object, default: () => ({}) },
+                handle: { type: String, default: '' },
             },
-
-            data() {
-                return { isOpen: false, popupStyle: {} };
-            },
-
-            computed: {
-                nestedFieldPathPrefix() {
-                    return this.fieldPathPrefix
-                        ? `${this.fieldPathPrefix}.${this.handle}`
-                        : this.handle;
-                },
-                nestedMetaPathPrefix() {
-                    return this.metaPathPrefix
-                        ? `${this.metaPathPrefix}.${this.handle}`
-                        : this.handle;
-                },
-            },
+            emits: ['update:value', 'update:meta'],
 
             methods: {
-                openPopup() {
-                    this.isOpen = true;
-                    document.body.classList.add('popup-group-open');
-                    this.$nextTick(() => {
-                        this.computePosition();
-                        setTimeout(() => { this.computePosition(); this.bindEvents(); }, 100);
-                    });
+                updateField(fieldHandle, val) {
+                    this.$emit('update:value', { ...this.value, [fieldHandle]: val });
                 },
-
-                closePopup() {
-                    this.isOpen = false;
-                    document.body.classList.remove('popup-group-open');
-                    this.unbindEvents();
+                updateFieldMeta(fieldHandle, metaVal) {
+                    this.$emit('update:meta', { ...this.meta, [fieldHandle]: metaVal });
                 },
-
-                computePosition() {
-                    const trigger = this.$refs.trigger;
-                    const popup   = this.$refs.popup;
-                    if (!trigger || !popup) return;
-
-                    const rect   = trigger.getBoundingClientRect();
-                    const popupH = popup.offsetHeight;
-                    const popupW = popup.offsetWidth;
-
-                    let top = rect.bottom + 6;
-                    if (top + popupH > window.innerHeight - 12) top = Math.max(8, rect.top - popupH - 6);
-
-                    let left = rect.left;
-                    if (left + popupW > window.innerWidth - 12) left = Math.max(8, window.innerWidth - popupW - 12);
-
-                    this.popupStyle = { position: 'fixed', zIndex: 3, top: `${top}px`, left: `${left}px` };
+                fieldComponent(type) {
+                    return (type || 'text').replace(/_/g, '-') + '-fieldtype';
                 },
-
-                bindEvents() {
-                    this._onOutsideClick = (e) => {
-                        if (this.$refs.popup?.contains(e.target)) return;
-                        if (this.$refs.trigger?.contains(e.target)) return;
-                        if (document.querySelector('[data-reka-popper-content-wrapper]')) return;
-                        this.closePopup();
-                    };
-                    this._onEscape = (e) => { if (e.key === 'Escape') this.closePopup(); };
-                    this._onScroll = (e) => {
-                        const trigger = this.$refs.trigger;
-                        if (trigger && e.target?.contains?.(trigger)) this.closePopup();
-                    };
-                    document.addEventListener('mousedown', this._onOutsideClick);
-                    document.addEventListener('keydown',   this._onEscape);
-                    window.addEventListener('scroll',      this._onScroll, true);
-                },
-
-                unbindEvents() {
-                    if (this._onOutsideClick) document.removeEventListener('mousedown', this._onOutsideClick);
-                    if (this._onEscape)       document.removeEventListener('keydown',   this._onEscape);
-                    if (this._onScroll)       window.removeEventListener('scroll',      this._onScroll, true);
-                },
-            },
-
-            beforeUnmount() {
-                document.body.classList.remove('popup-group-open');
-                this.unbindEvents();
             },
 
             template: `
-                <div>
-                    <button ref="trigger" type="button"
-                        class="cb-edit-btn flex items-center justify-center w-8 h-8 rounded-lg border-0 cursor-pointer transition-colors"
-                        title="Edit"
-                        @click.stop="isOpen ? closePopup() : openPopup()"
-                    >
-                        <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
-                            <path d="M11.5 1.5a1.5 1.5 0 0 1 2.12 2.12L5 12.24l-2.5.5.5-2.5L11.5 1.5z"
-                                  stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                        </svg>
-                    </button>
+                <vizuall-popup :title="config.display" :max-width="680">
+                    <template #trigger="{ toggle }">
+                        <button type="button"
+                            class="cb-edit-btn flex items-center justify-center w-8 h-8 rounded-lg border-0 cursor-pointer transition-colors"
+                            title="Edit"
+                            @click.stop="toggle"
+                        >
+                            <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
+                                <path d="M11.5 1.5a1.5 1.5 0 0 1 2.12 2.12L5 12.24l-2.5.5.5-2.5L11.5 1.5z"
+                                      stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                        </button>
+                    </template>
 
-                    <teleport to="body">
-                        <div v-if="isOpen" ref="popup" class="cb-item-popup" :style="popupStyle">
-                            <div class="popup-group-header">
-                                <span class="popup-group-title">{{ config.display }}</span>
-                                <button type="button" class="popup-group-close" @click="closePopup">✕</button>
-                            </div>
-                            <div class="popup-group-body">
-                                <FieldsProvider
-                                    :fields="config.fields || []"
-                                    :as-config="false"
-                                    :read-only="false"
-                                    :field-path-prefix="nestedFieldPathPrefix"
-                                    :meta-path-prefix="nestedMetaPathPrefix"
-                                >
-                                    <Fields />
-                                </FieldsProvider>
-                            </div>
-                            <div class="cb-item-popup-footer">
-                                <button type="button" class="cb-item-popup-done" @click="closePopup">Done</button>
-                            </div>
-                        </div>
-                    </teleport>
-                </div>
+                    <div v-for="field in (config.fields || [])" :key="field.handle" class="cb-popup-field">
+                        <label class="cb-popup-field-label">{{ field.display || field.handle }}</label>
+                        <component
+                            :is="fieldComponent(field.type)"
+                            :value="value[field.handle] ?? null"
+                            :meta="meta[field.handle] ?? null"
+                            :config="field.config || {}"
+                            :handle="field.handle"
+                            @update:value="updateField(field.handle, $event)"
+                            @update:meta="updateFieldMeta(field.handle, $event)"
+                        />
+                    </div>
+                </vizuall-popup>
             `,
         };
 
@@ -171,14 +71,12 @@
             const s = document.createElement('style');
             s.id = 'cb-item-popup-styles';
             s.textContent = `
-                .cb-item-popup{background:#fff;border:1px solid #e5e7eb;border-radius:8px;box-shadow:0 8px 32px rgba(0,0,0,.15);min-width:300px;max-width:680px;overflow:hidden;}
-                html.dark .cb-item-popup{background:#2d2d2d;border-color:#3a3a3a;box-shadow:0 8px 32px rgba(0,0,0,.55);}
-                .cb-item-popup .bard-editor .bard-content{min-height:160px!important;}
-                .cb-item-popup .bard-editor .ProseMirror{min-height:160px!important;}
-                .cb-item-popup-footer{display:flex;justify-content:flex-end;padding:8px 14px 10px;border-top:1px solid rgba(0,0,0,.07);}
-                html.dark .cb-item-popup-footer{border-top-color:rgba(255,255,255,.07);}
-                .cb-item-popup-done{padding:6px 20px;background:var(--color-primary,#6366f1);border:none;border-radius:6px;color:#fff;font-size:13px;font-weight:500;cursor:pointer;}
-                .cb-item-popup-done:hover{background:var(--color-primary-hover,#4f46e5);}
+                .cb-popup-field{margin-bottom:16px;}
+                .cb-popup-field:last-child{margin-bottom:0;}
+                .cb-popup-field-label{display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:rgba(0,0,0,.45);margin-bottom:6px;}
+                html.dark .cb-popup-field-label{color:rgba(255,255,255,.4);}
+                .vizuall-popup .bard-editor .bard-content{min-height:160px!important;}
+                .vizuall-popup .bard-editor .ProseMirror{min-height:160px!important;}
             `;
             document.head.appendChild(s);
         }
