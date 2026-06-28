@@ -31,6 +31,13 @@
                 fieldComponent(type) {
                     return (type || 'text').replace(/_/g, '-') + '-fieldtype';
                 },
+                // Statamic's publish pipeline auto-injects toolbar_mode:'fixed' for bard
+                // when rendered through FieldsProvider. Direct <component :is> rendering
+                // skips that pipeline, so we inject it here manually.
+                fieldConfig(field) {
+                    if ((field.type || '') !== 'bard') return field.config || {};
+                    return { ...(field.config || {}), toolbar_mode: 'fixed' };
+                },
             },
 
             computed: {
@@ -60,7 +67,7 @@
                             :is="fieldComponent(field.type)"
                             :value="value[field.handle] ?? null"
                             :meta="meta[field.handle] ?? null"
-                            :config="field.config || {}"
+                            :config="fieldConfig(field)"
                             :handle="field.handle"
                             @update:value="updateField(field.handle, $event)"
                             @update:meta="updateFieldMeta(field.handle, $event)"
